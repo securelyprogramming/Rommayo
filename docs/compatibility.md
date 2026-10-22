@@ -15,7 +15,7 @@ Initial live validation used RomM 5.4.0, a Galaxy S24 Ultra and macOS Apple Sili
 | Uploads | Browser/Android document picker | Automated desktop file selection and proxy streaming checks |
 | Browser emulation | RomM's own players, engines and configured cores | Player smoke check; no all-platform game certification |
 | SSO | RomM sign-in with explicit external-origin navigation | Implemented; provider-specific flows not certified |
-| Android menu controllers | Android key/axis input, focus, A/B swap, dead zone, controller check | Injected A/B/X/Y/shoulder checks; Retroid Pocket 5 detected; physical controls pending confirmation |
+| Android menu controllers | Android key/axis input, focus, A/B swap, dead zone, controller check | Injected A/B/X/Y/shoulder checks; Retroid Pocket 5 physical stick, D-pad, face and shoulder navigation confirmed by owner |
 | Steam Deck installation / launch | Checksum-verified AppImage and --deck launcher | Physical Deck install, Desktop Mode login/library and C64 homebrew core boot; Gaming Mode app launch after excluding overlay injection, 2026-10-22 |
 | Gameplay controllers / fullscreen | Browser player mapping and native web engine | Fullscreen host implemented; physical Deck/gamepad testing pending |
 | Web streaming | HTTP streaming, ranges, WebSocket upgrades | Automated forwarding checks; remote emulator streaming not certified |
@@ -33,7 +33,7 @@ Physical hardware checks recorded October 22, 2026. These are specific smoke tes
 | Device | Environment | Verified | Still to check |
 | --- | --- | --- | --- |
 | Samsung Galaxy S24 Ultra | Android 17 | Signed APK; native library; remembered login after force-stop. | Physical external-controller gameplay not verified. |
-| Retroid Pocket 5 | Android 13 | Signed APK; landscape native library; remembered login after force-stop; built-in controller detected. | Physical stick/button verification in progress. |
+| Retroid Pocket 5 | Android 13 | Signed APK; landscape native library; remembered login after force-stop; built-in controller detected; owner confirmed physical stick, D-pad, A/B/X/Y and shoulder navigation. | Gameplay bindings still require per-core checks. |
 | Steam Deck | SteamOS, docked 1920 × 1080 | AppImage installation; Desktop Mode login/library and C64 core boot; Gaming Mode launch. | Physical gameplay controls not yet verified. |
 | MacBook Pro (Apple M4 Pro) | macOS, Apple Silicon | Electron launch, session and download regression tests. | Other emulator cores and systems are not certified. |
 
