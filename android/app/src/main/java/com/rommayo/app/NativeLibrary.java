@@ -335,6 +335,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
     @Override public void search() { if (!screen.equals("library")) { if (api == null) return; library(); } search.setVisibility(View.VISIBLE); search.requestFocus(); ((InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(search, InputMethodManager.SHOW_IMPLICIT); }
     @Override public void recent() { if (api != null && !screen.equals("login")) switchSection("Recent"); }
     void controllerDialog(AlertDialog dialog) {
+        controls.stop();
         dialog.setOnShowListener(d -> { ViewGroup decor = (ViewGroup)dialog.getWindow().getDecorView(); decor.post(() -> ControllerFocus.ensure(decor, decor, dialog.getListView() != null ? dialog.getListView() : dialog.getButton(AlertDialog.BUTTON_NEGATIVE))); });
         dialog.setOnKeyListener((d, key, event) -> {
             if (key >= KeyEvent.KEYCODE_DPAD_UP && key <= KeyEvent.KEYCODE_DPAD_RIGHT) { if (event.getAction() == KeyEvent.ACTION_DOWN) { ViewGroup decor = (ViewGroup)dialog.getWindow().getDecorView(); ControllerFocus.move(decor, decor, dialog.getListView(), key); } return true; }

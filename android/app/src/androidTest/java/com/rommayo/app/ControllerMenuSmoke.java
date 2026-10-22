@@ -21,6 +21,7 @@ public final class ControllerMenuSmoke extends Instrumentation {
     private Object library;
     private ViewGroup appRoot;
     private View first, moved;
+    private android.app.AlertDialog popup;
     private static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); }
     @Override public void onCreate(Bundle args) { super.onCreate(args); start(); }
     private void ui(Runnable action) {
@@ -88,7 +89,10 @@ public final class ControllerMenuSmoke extends Instrumentation {
             ui(()->{View diagnostics=named(appRoot,"Controller check");check(diagnostics!=null,"Missing controller check action");diagnostics.requestFocusFromTouch();});
             key(KeyEvent.KEYCODE_BUTTON_A);ui(()->check("controller".equals(field(library,"screen")),"A did not open the focused action"));
             key(KeyEvent.KEYCODE_BUTTON_B);ui(()->check("settings".equals(field(library,"screen")),"B did not return from controller check"));
-            result.putString("stream","PASS: spatial focus; grid columns/rows; focus recovery; actual settings D-pad, left stick, HAT, hold/release; A opens and B returns. Inputs were synthesized.\n");code=-1;
+            axis(0,1,0,0);
+            ui(()->{first=appRoot.findFocus();popup=new android.app.AlertDialog.Builder(activity).setMessage("Controller dialog test").setNegativeButton("Close",null).create();((NativeLibrary)library).controllerDialog(popup);popup.show();});waitForIdleSync();SystemClock.sleep(500);
+            ui(()->{check(first==appRoot.findFocus(),"Menu kept repeating behind dialog");popup.dismiss();});axis(0,0,0,0);
+            result.putString("stream","PASS: spatial focus; grid columns/rows; focus recovery; actual settings D-pad, left stick, HAT, hold/release; A opens and B returns; dialogs stop background repeat. Inputs were synthesized.\n");code=-1;
         } catch(Throwable error) { result.putString("stream","FAIL: "+error+"\n"); }
         finally { if(activity!=null)ui(()->activity.finish()); }
         finish(code,result);
