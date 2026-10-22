@@ -135,7 +135,7 @@ test('Deck keeps exit controls visible and quitting requires confirmation', asyn
   await app.evaluate(({dialog}) => { dialog.showMessageBox = async () => ({response:0}); });
   await shellPage.locator('#quit').click(); await expect(remote.locator('h1')).toHaveText('My RomM library');
   await app.evaluate(({dialog}) => { dialog.showMessageBox = async () => ({response:1}); });
-  const closed = app.waitForEvent('close'); await shellPage.locator('#quit').click(); await closed;
+  const appProcess=app.process(); const closed = app.waitForEvent('close'); await shellPage.locator('#quit').click({noWaitAfter:true}).catch(error=>{if(!/closed/.test(error.message))throw error;}); await closed; await expect.poll(()=>appProcess.exitCode).toBe(0);
 });
 test('expired remembered cookie shows upstream sign-in and never retries a stored password', async () => {
   await fill(); await shellPage.locator('#steam-theme').uncheck(); await shellPage.locator('.connect-button').click(); await remotePage();

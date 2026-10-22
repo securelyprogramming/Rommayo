@@ -1,3 +1,5 @@
+Security update: malformed logout Origin headers and request targets return errors instead of crashing the web companion. Android authenticated downloads reject redirects and use the system save picker so the session cookie never follows a redirect to another host. Keep the app open until the picker appears.
+
 Steam Deck update: original Steam library art and app icons, a visible Quit app control, save-before-exit guidance, and clickable EmulatorJS toolbar controls during Deck gameplay. A labeled action menu supports touch, F10 and a standard controller (L3 + R3, D-pad, A/B). The artwork helper preserves existing shortcut IDs and controls and requires Steam to be closed.
 
 Rommayo automatically reopens the last remembered session using cookies, preserving the theme choice. No password is stored. Expired sessions ask you to sign in again.

@@ -3,14 +3,12 @@ package com.rommayo.app;
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
 import android.app.AlertDialog;
-import android.app.DownloadManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
 import android.util.Base64;
 import android.os.Bundle;
-import android.os.Environment;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
@@ -243,16 +241,30 @@ public class MainActivity extends ComponentActivity {
         String name = URLUtil.guessFileName(url, disposition, mime);
         new AlertDialog.Builder(this).setTitle("Save from your server?").setMessage(name + "\n\nOnly download content you are authorized to use. Downloads are at your own risk.")
             .setNegativeButton("Cancel", null).setPositiveButton("Download", (d, w) -> {
-                try {
-                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                    String cookie = CookieManager.getInstance().getCookie(url);
-                    if (cookie != null) request.addRequestHeader("Cookie", cookie);
-                    request.addRequestHeader("User-Agent", agent); if (mime != null) request.setMimeType(mime);
-                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeFilename(name));
-                    ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request); toast("Downloading to Downloads.");
-                } catch (Exception error) { toast("Download could not start. Check storage and server access."); }
+                startServerDownload(url, agent, name, mime);
+
             }).show();
+    }
+    private void startServerDownload(String url, String agent, String name, String mime) {
+        if (blobFile != null) { toast("Finish or cancel the current save first."); return; }
+        try {
+            File target = File.createTempFile("rommayo-download-", ".tmp", getCacheDir());
+            blobFile = target; blobName = safeFilename(name); blobMime = mime == null ? "application/octet-stream" : mime;
+            String cookie = CookieManager.getInstance().getCookie(url), address = server;
+            toast("Downloading. Keep Rommayo open until the save picker appears.");
+            worker.execute(() -> {
+                try {
+                    ServerDownload.fetch(url, address, cookie, agent, target, () -> !target.exists() || Thread.currentThread().isInterrupted());
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed() || blobFile != target) { target.delete(); return; }
+                        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(blobMime).putExtra(Intent.EXTRA_TITLE, blobName);
+                        startActivityForResult(intent, SAVE_BLOB);
+                    });
+                } catch (Exception issue) {
+                    target.delete(); runOnUiThread(() -> { if (blobFile == target) { clearBlob(); toast(issue instanceof java.io.IOException ? issue.getMessage() : "Download failed. Check your network and retry."); } });
+                }
+            });
+        } catch (Exception issue) { clearBlob(); toast("Could not prepare this download."); }
     }
     private String safeFilename(String input) { String name = input.replaceAll("[\\\\/\\p{Cntrl}]", "_"); return name.trim().isEmpty() || name.equals(".") || name.equals("..") ? "download" : name.substring(0, Math.min(200, name.length())); }
     private void startBlob(String url, String disposition, String mime) {
