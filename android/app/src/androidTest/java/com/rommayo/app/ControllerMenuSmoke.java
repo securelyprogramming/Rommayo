@@ -22,6 +22,7 @@ public final class ControllerMenuSmoke extends Instrumentation {
     private ViewGroup appRoot;
     private View first, moved;
     private android.app.AlertDialog popup;
+    private int choices;
     private static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); }
     @Override public void onCreate(Bundle args) { super.onCreate(args); start(); }
     private void ui(Runnable action) {
@@ -92,7 +93,10 @@ public final class ControllerMenuSmoke extends Instrumentation {
             axis(0,1,0,0);
             ui(()->{first=appRoot.findFocus();popup=new android.app.AlertDialog.Builder(activity).setMessage("Controller dialog test").setNegativeButton("Close",null).create();((NativeLibrary)library).controllerDialog(popup);popup.show();});waitForIdleSync();SystemClock.sleep(500);
             ui(()->{check(first==appRoot.findFocus(),"Menu kept repeating behind dialog");popup.dismiss();});axis(0,0,0,0);
-            result.putString("stream","PASS: spatial focus; grid columns/rows; focus recovery; actual settings D-pad, left stick, HAT, hold/release; A opens and B returns; dialogs stop background repeat. Inputs were synthesized.\n");code=-1;
+            ui(()->{popup=new android.app.AlertDialog.Builder(activity).setTitle("Filter release regression").setItems(new String[]{"All systems","Test system"},(d,which)->choices++).setNegativeButton("Cancel",null).create();((NativeLibrary)library).controllerDialog(popup);popup.show();popup.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_BUTTON_A));check(popup.isShowing()&&choices==0,"Opening A release activated the filter");});waitForIdleSync();
+            ui(()->{popup.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_BUTTON_A));popup.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_BUTTON_A));check(!popup.isShowing()&&choices==1,"Fresh A press did not choose a filter");});
+            ui(()->{popup=new android.app.AlertDialog.Builder(activity).setMessage("Back release regression").setNegativeButton("Cancel",null).create();((NativeLibrary)library).controllerDialog(popup);popup.show();popup.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_BUTTON_B));check(popup.isShowing(),"Opening B release dismissed the dialog");popup.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_BUTTON_B));popup.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_BUTTON_B));check(!popup.isShowing(),"Fresh B press did not cancel");});
+            result.putString("stream","PASS: spatial focus; grid columns/rows; focus recovery; actual settings D-pad, left stick, HAT, hold/release; A opens and B returns; dialogs stop background repeat and ignore opening A/B release. Inputs were synthesized.\n");code=-1;
         } catch(Throwable error) { result.putString("stream","FAIL: "+error+"\n"); }
         finally { if(activity!=null)ui(()->activity.finish()); }
         finish(code,result);
