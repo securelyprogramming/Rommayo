@@ -5,11 +5,12 @@ android {
     compileSdk 36
     buildFeatures { buildConfig true }
     defaultConfig {
+        testInstrumentationRunner 'com.rommayo.app.ControllerMenuSmoke'
         applicationId 'com.rommayo.app'
         minSdk 29
         targetSdk 36
-        versionCode 11
-        versionName '0.2.7'
+        versionCode 12
+        versionName '0.2.8'
     }
     signingConfigs {
         if (System.getenv('ROMMAYO_KEYSTORE')) {
