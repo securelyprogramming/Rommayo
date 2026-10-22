@@ -60,3 +60,12 @@ test('unchecked web remember produces session cookies and logout is same-origin 
   assert.equal(logout.headers.get('Clear-Site-Data'),null);
   const html = await (await fetch(base + '/')).text(); assert.match(html, /__rommayo\/session.js/);
 });
+
+test('malformed origins and targets cannot terminate the web server',async()=>{
+ for(const origin of ['not-a-url','null','http://[','https://user@'+new URL(base).host]){
+  const response=await fetch(base+'/__rommayo/logout',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:'{}'});assert.equal(response.status,403);
+ }
+ const code=await new Promise((resolve,reject)=>{const req=http.request({...new URL(base),hostname:'127.0.0.1',port:new URL(base).port,path:'http://['},res=>{res.resume();resolve(res.statusCode)});req.on('error',reject);req.end();});assert.equal(code,400);
+ assert.equal((await fetch(base+'/__rommayo/config')).status,200);
+ assert.equal((await fetch(base+'/__rommayo/touch-controls.js')).status,200);
+});

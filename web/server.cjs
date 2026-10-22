@@ -30,13 +30,15 @@ function createServer(config) {
     if (values.location?.startsWith(upstream.origin + '/')) values.location = values.location.slice(upstream.origin.length);
     return values;
   }
+  function ownOrigin(req) { try { const origin = new URL(req.headers.origin); return ['http:', 'https:'].includes(origin.protocol) && !origin.username && !origin.password && origin.host === req.headers.host && origin.pathname === '/' && !origin.search && !origin.hash; } catch { return false; } }
   const server = http.createServer(async (req, res) => {
-    const route = new URL(req.url, 'http://rommayo.invalid').pathname;
+    let route;
+    try { route = new URL(req.url, 'http://rommayo.invalid').pathname; } catch { return json(res,400,{error:'Invalid request address.'}); }
     if (route.startsWith('/__rommayo/')) {
       res.setHeader('Cache-Control', 'no-store');
       if (req.method === 'GET' && route === '/__rommayo/config') return json(res, 200, { connected: false, servers: [upstream.href], configuredServer: upstream.href });
       if (req.method === 'POST' && route === '/__rommayo/logout') {
-        if (!req.headers.origin || new URL(req.headers.origin).host !== req.headers.host || !req.headers['content-type']?.startsWith('application/json')) return json(res, 403, { error: 'Open Rommayo directly to log out.' });
+        if (!ownOrigin(req) || !req.headers['content-type']?.startsWith('application/json')) return json(res, 403, { error: 'Open Rommayo directly to log out.' });
         req.resume();
         const csrf = (req.headers.cookie || '').split(';').map(value => value.trim()).find(value => value.startsWith('romm_csrftoken='))?.slice('romm_csrftoken='.length);
         const expired = (req.headers.cookie || '').split(';').map(value => value.split('=')[0].trim()).filter(name => /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)).map(name => `${name}=; Max-Age=0; Path=/; SameSite=Lax; HttpOnly`);
@@ -58,7 +60,7 @@ function createServer(config) {
       if (req.method === 'POST' && route === '/__rommayo/connect') {
         try {
           // Prevent a different website from posting credentials or changing this browser's session.
-          if (!req.headers.origin || new URL(req.headers.origin).host !== req.headers.host) return json(res, 403, { error: 'Open this form directly in Rommayo.' });
+          if (!ownOrigin(req)) return json(res, 403, { error: 'Open this form directly in Rommayo.' });
           if (!req.headers['content-type']?.startsWith('application/json')) return json(res, 415, { error: 'Use the Rommayo connection form.' });
           let body = '';
           for await (const chunk of req) { body += chunk; if (body.length > 16000) { json(res, 413, { error: 'Request too large.' }); return; } }
@@ -85,6 +87,7 @@ function createServer(config) {
       }
       const files = {
         '/__rommayo/': ['index.html', 'text/html'], '/__rommayo/index.html': ['index.html', 'text/html'],
+        '/__rommayo/touch-controls.js': ['touch-controls.js', 'text/javascript'],
         '/__rommayo/session.js': ['session.js', 'text/javascript'], '/__rommayo/app.js': ['app.js', 'text/javascript'], '/__rommayo/style.css': ['style.css', 'text/css'],
         '/__rommayo/rommayo-theme.css': ['rommayo-theme.css', 'text/css'], '/__rommayo/web-bridge.js': ['web-bridge.js', 'text/javascript']
       };
