@@ -67,7 +67,7 @@ test('session cookies survive app restart and server passwords are not needed ag
   await fill(); await shellPage.locator('.connect-button').click(); await remotePage();
   await app.close();
   app = await _electron.launch({ args: [...(process.env.CI ? ['--no-sandbox'] : []), path.join(__dirname, '..')], env: { ...process.env, ROMMAYO_USER_DATA_DIRECTORY: data } });
-  shellPage = await app.firstWindow(); await shellPage.locator('.saved-server').click();
+  shellPage = await app.firstWindow(); await shellPage.locator('#desktop-exit').waitFor();
   const remote = await remotePage();
   await expect(remote.locator('h1')).toHaveText('My RomM library');
 });
@@ -124,4 +124,41 @@ test('logout respects cancellation and clears authentication without deleting ga
   await shellPage.locator('#web-login').click(); remote = await remotePage();
   await expect(remote.locator('h1')).toHaveText('RomM sign-in');
   expect(await remote.evaluate(() => localStorage.getItem('game-save-fixture'))).toBe('keep-progress');
+});
+
+test('Deck keeps exit controls visible and quitting requires confirmation', async () => {
+  await app.close();
+  app = await _electron.launch({ args: [...(process.env.CI ? ['--no-sandbox'] : []), path.join(__dirname, '..'), '--deck'], env: { ...process.env, ROMMAYO_USER_DATA_DIRECTORY: data } });
+  shellPage = await app.firstWindow(); await fill(); await shellPage.locator('.connect-button').click(); const remote = await remotePage();
+  await expect(shellPage.locator('#exit-hint')).toContainText('STEAM');
+  expect(await app.evaluate(({ BrowserWindow }) => { const w=BrowserWindow.getAllWindows()[0], v=w.contentView.children[0]; return w.getContentSize()[1]-v.getBounds().height-v.getBounds().y; })).toBe(68);
+  await app.evaluate(({dialog}) => { dialog.showMessageBox = async () => ({response:0}); });
+  await shellPage.locator('#quit').click(); await expect(remote.locator('h1')).toHaveText('My RomM library');
+  await app.evaluate(({dialog}) => { dialog.showMessageBox = async () => ({response:1}); });
+  const closed = app.waitForEvent('close'); await shellPage.locator('#quit').click(); await closed;
+});
+test('expired remembered cookie shows upstream sign-in and never retries a stored password', async () => {
+  await fill(); await shellPage.locator('#steam-theme').uncheck(); await shellPage.locator('.connect-button').click(); await remotePage();
+  await app.evaluate(async ({session}, key) => {const s=session.fromPartition(key);await s.clearStorageData({storages:['cookies']});await s.cookies.flushStore();}, require('../desktop/policy.cjs').partitionFor(address));
+  await app.close();
+  app = await _electron.launch({args:[...(process.env.CI?['--no-sandbox']:[]),path.join(__dirname,'..')],env:{...process.env,ROMMAYO_USER_DATA_DIRECTORY:data}});
+  shellPage=await app.firstWindow(); const remote=await remotePage(); await expect(remote.locator('h1')).toHaveText('RomM sign-in');
+  const config=JSON.parse(fs.readFileSync(path.join(data,'servers.json'))); expect(config.lastSession.steamTheme).toBe(false); expect(JSON.stringify(config)).not.toContain('demo');
+});
+test('touch and controller menu actions use upstream player buttons and confirm destructive actions',async()=>{
+ await fill();await shellPage.locator('.connect-button').click();const remote=await remotePage();
+ await remote.evaluate(()=>{window.actions=[];const button=name=>{const b=document.createElement('button');b.onclick=()=>window.actions.push(name);document.body.append(b);return b;};window.EJS_emulator={started:true,elements:{bottomBar:{playPause:[button('pause')],saveState:[button('save')],loadState:[button('load')]}}};});
+ await shellPage.locator('#controls-toggle').click();await expect(shellPage.locator('#player-actions')).toBeVisible();
+ await shellPage.locator('[data-player-action="saveState"]').click();expect(await remote.evaluate(()=>window.actions)).toEqual(['save']);
+ await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:0});});
+ await shellPage.locator('[data-player-action="loadState"]').click();expect(await remote.evaluate(()=>window.actions)).toEqual(['save']);
+ await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:1});});
+ await shellPage.locator('[data-player-action="loadState"]').click();expect(await remote.evaluate(()=>window.actions)).toEqual(['save','load']);
+ // Standard controller: B closes, L3+R3 opens, A activates the focused action.
+ await shellPage.evaluate(()=>{window.pad={index:0,mapping:'standard',buttons:Array.from({length:16},()=>({pressed:false}))};Object.defineProperty(navigator,'getGamepads',{value:()=>[window.pad]});window.pad.buttons[1].pressed=true;});
+ await expect(shellPage.locator('#player-actions')).toBeHidden();
+ await shellPage.evaluate(()=>{window.pad.buttons[1].pressed=false;window.pad.buttons[10].pressed=true;window.pad.buttons[11].pressed=true;});
+ await expect(shellPage.locator('#player-actions')).toBeVisible();
+ await shellPage.locator('[data-player-action="playPause"]').focus();await shellPage.evaluate(()=>{window.pad.buttons[0].pressed=true;});
+ await expect.poll(()=>remote.evaluate(()=>window.actions)).toEqual(['save','load','pause']);
 });
