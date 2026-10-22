@@ -210,6 +210,11 @@ public class MainActivity extends ComponentActivity {
             @Override public boolean onCreateWindow(WebView view, boolean dialog, boolean gesture, android.os.Message message) {
                 if (!gesture) return false;
                 WebView popup = new WebView(MainActivity.this);
+                // This transient view only routes the initial user-requested URL.
+                popup.getSettings().setJavaScriptEnabled(false);
+                popup.getSettings().setAllowFileAccess(false);
+                popup.getSettings().setAllowContentAccess(false);
+                popup.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
                 popup.setWebViewClient(new WebViewClient() {
                     @Override public boolean shouldOverrideUrlLoading(WebView ignored, WebResourceRequest request) {
                         String url = request.getUrl().toString();

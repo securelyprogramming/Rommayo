@@ -11,7 +11,10 @@ public final class ServerPolicy {
         if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme())) || uri.getHost() == null || uri.getRawUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null || uri.getPort() > 65535) {
             throw new Exception("Use an HTTP or HTTPS address without credentials, query parameters or fragments.");
         }
-        String path = uri.getPath() == null ? "" : uri.getPath().replaceAll("/+$", "");
+        String path = uri.getPath() == null ? "" : uri.getPath();
+        int end = path.length();
+        while (end > 0 && path.charAt(end - 1) == '/') end--;
+        path = path.substring(0, end);
         return new URI(uri.getScheme().toLowerCase(), null, uri.getHost().toLowerCase(), uri.getPort(), path + "/", null, null).toASCIIString();
     }
     public static String origin(String url) {
