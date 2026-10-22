@@ -108,7 +108,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tar -czf artifacts/Rommayo-0.2.6-steam-artwork.tar.gz -C assets/steam icon.png portrait.png landscape.png hero.png logo.png steam-artwork.py
+          tar -czf artifacts/Rommayo-0.2.7-steam-artwork.tar.gz -C assets/steam icon.png portrait.png landscape.png hero.png logo.png steam-artwork.py
           cd artifacts
           sha256sum * > SHA256SUMS.txt
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
