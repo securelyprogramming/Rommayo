@@ -81,7 +81,7 @@ test('HTTP and blob downloads use native save handling', async () => {
   await remote.getByText('Save fixture', { exact: true }).click();
   await expect.poll(() => fs.existsSync(output)).toBe(true); expect(fs.readFileSync(output, 'utf8')).toBe('authorized fixture content');
   fs.unlinkSync(output); await remote.locator('#blob').click();
-  await expect.poll(() => fs.existsSync(output)).toBe(true); expect(fs.readFileSync(output, 'utf8')).toBe('fixture save');
+  await expect.poll(() => fs.existsSync(output) ? fs.readFileSync(output, 'utf8') : null).toBe('fixture save');
 });
 test('leaving an active game asks first and respects both stay and leave', async () => {
   await fill(); await shellPage.locator('.connect-button').click(); const remote = await remotePage();
@@ -161,4 +161,34 @@ test('touch and controller menu actions use upstream player buttons and confirm 
  await expect(shellPage.locator('#player-actions')).toBeVisible();
  await shellPage.locator('[data-player-action="playPause"]').focus();await shellPage.evaluate(()=>{window.pad.buttons[0].pressed=true;});
  await expect.poll(()=>remote.evaluate(()=>window.actions)).toEqual(['save','load','pause']);
+});
+
+test('RomM player returns home after confirmed exit; touch toggle survives fullscreen and SPA replacement',async()=>{
+ await fill();await shellPage.locator('.connect-button').click();const page=await remotePage();
+ await page.getByText('Collections',{exact:true}).click();
+ await page.evaluate(() => {
+ const parent = document.createElement('div'); parent.id='engine'; parent.tabIndex=-1; parent.style.cssText='position:relative;width:600px;height:300px';
+ const pad = document.createElement('div'); pad.className='ejs_virtualGamepad_parent'; pad.textContent='Touch D-pad';
+ const toolbar=document.createElement('button'); toolbar.id='original-toolbar'; toolbar.textContent='Save state';
+ parent.append(pad,toolbar); document.body.prepend(parent);
+ const handlers={}; window.EJS_emulator={started:true,virtualGamepad:pad,elements:{parent},toggleVirtualGamepad:show=>pad.style.display=show?'':'none',on:(event,callback)=>(handlers[event]??=[]).push(callback),callEvent:event=>(handlers[event]??[]).forEach(callback=>callback())};
+});
+ await expect(page.getByRole('button',{name:'Hide touch controls'})).toBeVisible();
+ await page.getByRole('button',{name:'Hide touch controls'}).click();
+ await expect(page.locator('.ejs_virtualGamepad_parent')).toBeHidden();await expect(page.locator('#original-toolbar')).toBeVisible();
+ // Fullscreen contains the toggle, independent of the outer app toolbar.
+ expect(await page.locator('#engine .mayo-touch-toggle').count()).toBe(1);
+ await page.evaluate(()=>{window.onbeforeunload=event=>{event.preventDefault();event.returnValue='';};window.EJS_emulator.callEvent('exit');});
+ await expect(page).toHaveURL(address+'/');await expect(page.locator('#engine')).toHaveCount(0);
+ await page.evaluate(() => {
+ const parent = document.createElement('div'); parent.id='engine'; parent.tabIndex=-1; parent.style.cssText='position:relative;width:600px;height:300px';
+ const pad = document.createElement('div'); pad.className='ejs_virtualGamepad_parent'; pad.textContent='Touch D-pad';
+ const toolbar=document.createElement('button'); toolbar.id='original-toolbar'; toolbar.textContent='Save state';
+ parent.append(pad,toolbar); document.body.prepend(parent);
+ const handlers={}; window.EJS_emulator={started:true,virtualGamepad:pad,elements:{parent},toggleVirtualGamepad:show=>pad.style.display=show?'':'none',on:(event,callback)=>(handlers[event]??=[]).push(callback),callEvent:event=>(handlers[event]??[]).forEach(callback=>callback())};
+});
+ await expect(page.getByRole('button',{name:'Show touch controls'})).toBeVisible();
+ await expect(page.locator('.ejs_virtualGamepad_parent')).toBeHidden();
+ await page.evaluate(()=>{const old=window.EJS_emulator;const parent=old.elements.parent.cloneNode(true);parent.querySelector('.mayo-touch-toggle').remove();old.elements.parent.replaceWith(parent);window.EJS_emulator={...old,elements:{parent},virtualGamepad:parent.querySelector('.ejs_virtualGamepad_parent'),on:()=>{},toggleVirtualGamepad(show){this.virtualGamepad.style.display=show?'':'none';}};});
+ await expect(page.locator('.mayo-touch-toggle')).toHaveCount(1);await expect(page.getByRole('button',{name:'Show touch controls'})).toBeVisible();
 });

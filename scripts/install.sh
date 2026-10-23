@@ -3,8 +3,8 @@
 set -euo pipefail
 APP='Rommayo'
 SLUG='rommayo'
-VERSION='0.2.7'
-TAG='v0.2.7'
+VERSION='0.2.8'
+TAG='v0.2.8'
 REPOSITORY='quentinmayo/Rommayo'
 DECK=0
 DRY_RUN=0

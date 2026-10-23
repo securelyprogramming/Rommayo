@@ -55,7 +55,7 @@ public class MainActivity extends ComponentActivity {
     private View customView;
     private WebChromeClient.CustomViewCallback customCallback;
     private boolean fullscreen = false, steamTheme = true;
-    private String theme = "";
+    private String theme = "", playerShell = "";
     private File blobFile;
     private OutputStream blobStream;
     private String blobToken = "", blobName = "download", blobMime = "application/octet-stream";
@@ -69,6 +69,7 @@ public class MainActivity extends ComponentActivity {
         preferences = getSharedPreferences("rommayo", MODE_PRIVATE);
         try { servers = new JSONArray(preferences.getString("servers", "[]")); } catch (Exception ignored) {}
         try (InputStream input = getAssets().open("rommayo-theme.css")) { java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream(); copy(input, buffer); theme = buffer.toString("UTF-8"); } catch (Exception ignored) {}
+        try (InputStream input = getAssets().open("mayo-player.js")) { java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream(); copy(input, buffer); playerShell = buffer.toString("UTF-8"); } catch (Exception ignored) {}
         root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(16, 24, 34));
         root.setOnApplyWindowInsetsListener((view, insets) -> {
             view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()); return insets;
@@ -164,9 +165,14 @@ public class MainActivity extends ComponentActivity {
         String address = server;
         allowedOrigins.clear(); allowedOrigins.add(ServerPolicy.origin(address));
         remote = new WebView(this); configure(remote); remote.setBackgroundColor(Color.rgb(16, 24, 34));
-        // This WebView has no general purpose native bridge. The download bridge is origin restricted and token gated.
+        // Both message bridges are restricted to this server origin; player messages can only close the player.
         WebViewCompat.addWebMessageListener(remote, "rommayoDownload", java.util.Collections.singleton(ServerPolicy.origin(address)), (view, message, origin, mainFrame, reply) -> {
             if (mainFrame && ServerPolicy.origin(address).equals(origin.toString())) receiveBlob(message.getData(), reply);
+        });
+        WebViewCompat.addWebMessageListener(remote, "rommayoPlayer", java.util.Collections.singleton(ServerPolicy.origin(address)), (view, message, origin, mainFrame, reply) -> {
+            if (view == remote && mainFrame && ServerPolicy.origin(address).equals(origin.toString()) && "exit".equals(message.getData())) {
+                root.post(() -> { if (remote == view) returnToLibrary(); });
+            }
         });
         remote.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -177,6 +183,7 @@ public class MainActivity extends ComponentActivity {
             }
             @Override public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
+                if (view == remote && ServerPolicy.origin(server).equals(ServerPolicy.origin(url))) view.evaluateJavascript(playerShell, null);
                 if (steamTheme && ServerPolicy.origin(server).equals(ServerPolicy.origin(url))) {
                     view.evaluateJavascript("(()=>{let s=document.getElementById('rommayo-theme');if(!s){s=document.createElement('style');s.id='rommayo-theme';document.head.append(s)}s.textContent=" + JSONObject.quote(theme) + ";})()", null);
                 }

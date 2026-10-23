@@ -9,8 +9,8 @@ android {
         applicationId 'com.rommayo.app'
         minSdk 29
         targetSdk 36
-        versionCode 13
-        versionName '0.2.8'
+        versionCode 14
+        versionName '0.2.9'
     }
     signingConfigs {
         if (System.getenv('ROMMAYO_KEYSTORE')) {
