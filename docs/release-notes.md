@@ -1,3 +1,7 @@
+Android handheld update: native menus move focus explicitly with D-pad keys, HAT axes and the left stick. Focus stays visible when switching input methods, and game cards remain readable inside the selection outline. Hold a direction to repeat, A opens and B returns. Platform dialogs wait for a fresh A/B press so the opening press cannot immediately close them.
+
+The Retroid Pocket 5 owner confirmed physical D-pad menu navigation and the Recent platform filter flow: A opens, D-pad moves, a fresh A selects and B cancels. Synthesized Android navigation checks also pass on Retroid Pocket 5 and Galaxy S24 Ultra. Physical gameplay bindings still require per-core checks; menu validation does not establish gameplay compatibility.
+
 Android security follow-up: URL normalization uses a bounded linear slash trim, and transient popup routing disables JavaScript and local file/content access explicitly. Detailed CodeQL design alerts are documented in the security review.
 
 Security update: malformed logout Origin headers and request targets return errors instead of crashing the web companion. Android authenticated downloads reject redirects and use the system save picker so the session cookie never follows a redirect to another host. Keep the app open until the picker appears.
