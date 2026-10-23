@@ -65,3 +65,13 @@ During Deck gameplay the original EmulatorJS toolbar stays visible and clickable
 Save/export before leaving. **Quit app** asks before closing; alternatively press **STEAM → Exit game** and confirm. Quitting does not save automatically or log you out. If the player itself is in HTML fullscreen, its toolbar remains available; use Steam’s system menu to exit the app.
 
 With **Remember login** checked, Rommayo now automatically reopens the last server at startup using its cookie and saved theme choice. Your password is never stored. An expired session shows RomM’s sign-in page. **Log out**, **Forget sessions**, switching servers, or an unchecked login stops automatic reopening. Android already restores remembered sessions.
+
+## Touch controls and returning home
+
+Use **Hide touch controls** at the top left to remove the on-screen D-pad and action buttons when using a handheld controller. **Show touch controls** brings them back. The choice is remembered between games, and the toggle remains inside HTML fullscreen. The original EmulatorJS toolbar stays available; on a wide player it remains visible along the bottom.
+
+Save/export first, then choose **Exit** in EmulatorJS. **Cancel** keeps the game open. Confirmed Exit returns to the native Android library or the desktop RomM home without logging out. **Quit app** closes the companion after its own confirmation.
+
+![Rommayo touch toggle and original toolbar on a physical Steam Deck, with game imagery blurred](screenshots/steam-deck-player-controls.png)
+
+Linux 0.2.9 candidate checks on a real Deck verified remembered login, authorized C64 core boot, fullscreen containment, hide/show, Cancel, confirmed Exit and a remembered control preference after relaunch. These checks ran in Desktop Mode with `--deck` and X11. Current-update Gaming Mode and physical-button checks are tracked separately; this is not Steam Verified certification. Game imagery was blurred before capture.

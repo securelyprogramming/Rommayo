@@ -136,7 +136,7 @@ Physical hardware checks recorded October 22, 2026. These are specific smoke tes
 | --- | --- | --- | --- |
 | Samsung Galaxy S24 Ultra | Android 17 | Signed APK; native library; remembered login after force-stop. | Physical external-controller gameplay not verified. |
 | Retroid Pocket 5 | Android 13 | Signed APK; landscape native library; remembered login after force-stop; owner confirmed D-pad menu navigation and Recent platform filter opening, D-pad selection, A selection and B cancellation. | Physical left-stick menu and gameplay bindings require further checks. |
-| Steam Deck | SteamOS, docked 1920 × 1080 | AppImage installation; Desktop Mode login/library and C64 core boot; Gaming Mode launch. | Physical gameplay controls not yet verified. |
+| Steam Deck | SteamOS, docked 1920 × 1080 | Linux 0.2.9 candidate: Desktop Mode remembered login, C64 core boot, fullscreen touch toggle, Cancel/Exit returning home, and remembered touch-control preference. Earlier Gaming Mode launch also verified. | Current-update Gaming Mode and physical gameplay controls remain under test. |
 | MacBook Pro (Apple M4 Pro) | macOS, Apple Silicon | Electron launch, session and download regression tests. | Other emulator cores and systems are not certified. |
 
 [Setup and current device notes](https://rommayo.quentinmayo.com/getting-started#tested-devices).
