@@ -1,5 +1,6 @@
 package com.rommayo.app;
 
+import com.emulatormayo.boogie.BoogieIntegration;
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
 import android.app.AlertDialog;
@@ -82,6 +83,7 @@ public class MainActivity extends ComponentActivity {
         // A process can be killed without onDestroy. Clear non-remembered authentication
         // before any API request or WebView is allowed to restore a session.
         java.util.List<String> temporary = new java.util.ArrayList<>(preferences.getStringSet("temporarySessions", java.util.Collections.emptySet()));
+        if (!temporary.isEmpty()) BoogieIntegration.clearRomm(this);
         clearTemporarySessions(temporary, 0, () -> {
             if (servers.length() > 0) {
                 try { server = ServerPolicy.normalize(servers.optString(0)); nativeLibrary.restore(server); }
@@ -101,11 +103,22 @@ public class MainActivity extends ComponentActivity {
         view.setFocusable(true); view.setFocusableInTouchMode(true);
     }
     String currentServer() { return server; }
+    void openCoop() {
+        nativeLibrary.stopInput();
+        // Credentials stay within this app's sandbox; never send them in an Intent.
+        String cookie = server.isEmpty() ? null : CookieManager.getInstance().getCookie(server + "api/users/me");
+        try {
+            if (cookie == null || cookie.isEmpty()) BoogieIntegration.clearRomm(this);
+            else BoogieIntegration.connectRomm(this, server, cookie);
+            BoogieIntegration.open(this, "rommayo");
+        } catch (Exception issue) { toast("Could not open LAN co-op. Check your connection and try again."); }
+    }
     private void clearTemporarySessions(java.util.List<String> addresses, int index, Runnable done) {
         if (index == addresses.size()) { preferences.edit().remove("temporarySessions").commit(); done.run(); return; }
         clearServerCookies(addresses.get(index), () -> clearTemporarySessions(addresses, index + 1, done));
     }
     void beginSession(String address, boolean remember) {
+        if (!address.equals(server)) BoogieIntegration.clearRomm(this);
         server = address;
         JSONArray recent = new JSONArray();
         if (remember) recent.put(address);

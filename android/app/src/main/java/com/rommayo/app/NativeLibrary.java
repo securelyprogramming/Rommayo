@@ -1,6 +1,7 @@
 package com.rommayo.app;
 
 import android.app.AlertDialog;
+import com.emulatormayo.boogie.BoogieIntegration;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
@@ -45,6 +46,9 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
     private int platform = -1, offset, total, generation;
     private boolean loading, hasMore, restoring;
     private JSONObject selectedGame;
+    private android.graphics.Bitmap backdropArt;
+    private int artworkRequest;
+    private long backdropGameId = -1;
     private int restoreSelection;
     private boolean shortScreen() { return activity.getResources().getConfiguration().screenHeightDp < 480; }
     private boolean compact() { return shortScreen() || prefs.getBoolean("compact", false); }
@@ -83,7 +87,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
     private void rowButton(LinearLayout row, String label, Runnable action) { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1); lp.setMargins(dp(3), 0, dp(3), 0); row.addView(button(label, action), lp); }
     private void cancelPage() { controls.stop(); generation++; if (pendingSearch != null) handler.removeCallbacks(pendingSearch); loading = false; }
     private void frame(String title, boolean tabs) {
-        cancelPage(); root.removeAllViews(); root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(27, 43, 59), BG, BG}));
+        cancelPage(); root.removeAllViews(); applyAppearance();
         boolean rail = tabs && shortScreen() && activity.getResources().getConfiguration().screenWidthDp >= 600;
         LinearLayout stage = new LinearLayout(activity); stage.setOrientation(rail ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
         root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -95,6 +99,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
             navigation = side; stage.addView(side, new LinearLayout.LayoutParams(dp(124), -1));
             add(side, navButton("Library", "Library", () -> switchSection("Library")));
             add(side, navButton("Recent", "Recent", () -> switchSection("Recent")));
+            add(side, navButton("Co-op", "Co-op", this::coop));
             add(side, navButton("Settings", "Settings", this::settings));
             stage.addView(main, new LinearLayout.LayoutParams(0, -1, 1));
         } else stage.addView(main, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -106,8 +111,8 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         body = column(); body.setPadding(dp(14), dp(4), dp(14), dp(6)); main.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
         if (tabs && !rail) {
             navigation = new LinearLayout(activity); navigation.setPadding(dp(8), dp(7), dp(8), dp(7)); navigation.setBackgroundColor(Color.rgb(23, 29, 37));
-            for (String destination : new String[]{"Library", "Recent", "Settings"}) {
-                Button item = navButton(destination, destination, () -> { if (destination.equals("Settings")) settings(); else switchSection(destination); });
+            for (String destination : new String[]{"Library", "Recent", "Co-op", "Settings"}) {
+                Button item = navButton(destination, destination, () -> { if (destination.equals("Settings")) settings(); else if (destination.equals("Co-op")) coop(); else switchSection(destination); });
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1); lp.setMargins(dp(4), 0, dp(4), 0); navigation.addView(item, lp);
             }
             root.addView(navigation);
@@ -117,7 +122,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
     }
     private Button navButton(String title, String destination, Runnable action) {
         Button item = button(title, action); item.setContentDescription(destination); item.setTextSize(13); item.setLetterSpacing(.05f);
-        boolean selected = (screen.equals("settings") || screen.equals("controller")) ? destination.equals("Settings") : destination.equals(section);
+        boolean selected = (screen.equals("settings") || screen.equals("controller")) ? destination.equals("Settings") : screen.equals("coop") ? destination.equals("Co-op") : destination.equals(section);
         item.setTextColor(selected ? ACCENT : MUTED); item.setTypeface(null, selected ? Typeface.BOLD : Typeface.NORMAL);
         if (selected) { StateListDrawable state = new StateListDrawable(); state.addState(new int[]{android.R.attr.state_focused}, shape(Color.rgb(35, 64, 86), true)); state.addState(new int[]{android.R.attr.state_pressed}, shape(Color.rgb(49, 91, 120), true)); GradientDrawable active = shape(Color.rgb(36, 60, 80), false); active.setStroke(dp(1), Color.rgb(54, 98, 128)); state.addState(new int[]{}, active); item.setBackground(state); }
         return item;
@@ -170,10 +175,10 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
     private EditText field(LinearLayout parent, String label, int type) {
         add(parent, text(label, 14, MUTED)); EditText view = new EditText(activity); view.setSingleLine(true); view.setInputType(type); view.setTextColor(INK); view.setTextSize(16); view.setMinHeight(dp(48)); view.setBackgroundTintList(android.content.res.ColorStateList.valueOf(ACCENT)); add(parent, view); return view;
     }
-    void endSession() { cancelPage(); if (api != null) { api.close(); api = null; } games.clear(); platforms = new JSONArray(); }
-    void restore(String address) { if (api != null) api.close(); api = new RommApi(address);  library(); }
+    void endSession() { BoogieIntegration.clearRomm(activity); clearBackdrop(); cancelPage(); if (api != null) { api.close(); api = null; } games.clear(); platforms = new JSONArray(); }
+    void restore(String address) { clearBackdrop(); if (api != null) api.close(); api = new RommApi(address);  library(); }
     private void connected(String address) {  platforms = new JSONArray(); query = ""; platform = -1; library(); }
-    void fromWeb() { if (api == null && !activity.currentServer().isEmpty()) api = new RommApi(activity.currentServer()); library(); }
+    void fromWeb() { clearBackdrop(); if (api != null) api.close(); api = activity.currentServer().isEmpty() ? null : new RommApi(activity.currentServer()); library(); }
     private void switchSection(String value) { hideKeyboard(); section = value; library(); }
     private void hideKeyboard() { View focus = activity.getCurrentFocus(); if (focus != null) ((InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(focus.getWindowToken(), 0); }
     private void library() {
@@ -187,6 +192,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         grid = new GridView(activity); grid.setFocusable(true); grid.setFocusableInTouchMode(true); grid.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS); grid.setNumColumns(GridView.AUTO_FIT); grid.setColumnWidth(dp(compact() ? 118 : 152)); grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH); grid.setHorizontalSpacing(dp(10)); grid.setVerticalSpacing(dp(10)); grid.setPadding(dp(4), dp(4), dp(4), dp(8)); grid.setClipToPadding(false); grid.setDrawSelectorOnTop(true); grid.setSelector(ControllerFocus.selector(ACCENT,dp(3),dp(6))); grid.setCacheColorHint(Color.TRANSPARENT);
         grid.setAdapter(adapter); body.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1));
         grid.setOnItemClickListener((parent, view, position, id) -> { selection = position; detail(games.get(position)); });
+        grid.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() { public void onNothingSelected(android.widget.AdapterView<?> parent) {} public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) { if (position >= 0 && position < games.size()) focusBackdrop(games.get(position)); } });
         grid.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView view, int state) {}
             @Override public void onScroll(AbsListView view, int first, int visible, int count) { if (count > 0 && first + visible >= count - 8 && hasMore && !loading) load(false); }
@@ -242,13 +248,26 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         }
     };
     private String name(JSONObject game) { String value = game.optString("name", ""); return value.isEmpty() || value.equals("null") ? game.optString("fs_name_no_ext", "Untitled") : value; }
+    private NativeAppearance appearanceBackground() { return new NativeAppearance(NativeAppearance.readMode(prefs), NativeAppearance.readDim(prefs), "rommayo", backdropArt); }
+    private void applyAppearance() { root.setBackground(appearanceBackground()); }
+    private void clearBackdrop() { artworkRequest++; backdropGameId = -1; backdropArt = null; selectedGame = null; applyAppearance(); }
+    private void focusBackdrop(JSONObject game) {
+        long id = game.optLong("id", -1); if (api == null || id < 1 || id == backdropGameId) return;
+        backdropGameId = id; backdropArt = null; applyAppearance(); final int request = ++artworkRequest; final RommApi source = api;
+        String path = game.optString("path_cover_small", ""); if (path.isEmpty() || path.equals("null")) path = game.optString("path_cover_large", "");
+        source.cover(path, bitmap -> { if (source != api || request != artworkRequest || backdropGameId != id || screen.equals("login")) return; backdropArt = bitmap; applyAppearance(); });
+    }
+    private void appearance() {
+        AlertDialog dialog = NativeAppearance.settings(activity, prefs, "rommayo", () -> backdropArt, this::applyAppearance);
+        controllerDialog(dialog); dialog.show();
+    }
     private void platformPicker() {
         String[] names = new String[platforms.length() + 1]; names[0] = "All platforms";
         for (int i = 0; i < platforms.length(); i++) names[i + 1] = platforms.optJSONObject(i).optString("display_name", platforms.optJSONObject(i).optString("name"));
         AlertDialog dialog = new AlertDialog.Builder(activity).setTitle("Choose platform").setItems(names, (d, which) -> { platform = which == 0 ? -1 : platforms.optJSONObject(which - 1).optInt("id"); platformName = names[which]; library(); }).setNegativeButton("Cancel", null).create(); controllerDialog(dialog); dialog.show();
     }
     private void detail(JSONObject game) {
-        hideKeyboard(); selectedGame = game; screen = "detail"; frame("GAME", true); int request = generation;
+        hideKeyboard(); focusBackdrop(game); selectedGame = game; screen = "detail"; frame("GAME", true); int request = generation;
         ScrollView scroll = new ScrollView(activity); LinearLayout content = column(); scroll.addView(content); body.addView(scroll, new LinearLayout.LayoutParams(-1, -1));
         add(content, button("‹ Back to " + section.toLowerCase(java.util.Locale.ROOT), this::returnLibrary));
         TextView heading = text(name(game), 29, INK); heading.setTypeface(null, Typeface.BOLD); add(content, heading);
@@ -268,9 +287,22 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         content.getChildAt(0).requestFocus();
     }
     private void returnLibrary() { restoreSelection = selection; library(); /* Fresh server data includes recent play activity. */ }
+    private void coop() {
+        hideKeyboard(); screen = "coop"; frame("BOOGIE WOOGIE", true);
+        ScrollView scroll = new ScrollView(activity); LinearLayout content = column(); scroll.addView(content); body.addView(scroll);
+        add(content, text("Same game. Together.", 28, INK));
+        add(content, text("Start a LAN session from your RomM library, join another host, or watch a game. Your current RomM login stays private on this device.", 16, MUTED));
+        Button launch = button("Open Boogie Woogie · LAN co-op", activity::openCoop); add(content, launch);
+        add(content, text("Share Player 1 for a single-player game, control Player 2 separately, or join as a spectator. Hosting currently supports NES games. Pair with the same broker and approve each guest before playing.", 14, MUTED));
+        add(content, text("Boogie Woogie is also available as a standalone companion. Main-app and standalone installations keep separate pairing and save data.", 13, MUTED));
+        launch.requestFocus();
+    }
     void settings() {
         screen = "settings"; frame("SETTINGS", true);
         ScrollView scroll = new ScrollView(activity); LinearLayout content = column(); scroll.addView(content); body.addView(scroll);
+        add(content, button("Appearance · background and dimming", this::appearance));
+        add(content, button("Boogie Woogie · LAN co-op", activity::openCoop));
+        add(content, text("LAN co-op: share Player 1, play as Player 2, or watch. NES hosting is currently supported.", 14, MUTED));
         add(content, text("Handheld & controller", 25, INK));
         toggle(content, "Swap A/B menu actions", "swap", false, () -> { readControls(); hint.setText(controllerHint()); });
         toggle(content, "Left stick navigates menus", "sticks", true, this::readControls);
@@ -280,7 +312,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         toggle(content, "Compact cards for small screens", "compact", false, () -> {});
         toggle(content, "Lock landscape for handheld play", "landscape", false, this::applyOrientation);
         add(content, button("Controller check", this::controllerCheck));
-        add(content, text("D-pad / left stick: move focus\n" + (controls.swap ? "B: open · A: back" : "A: open · B: back") + "\nX: search · Y: recent games\nLB / RB: Library, Recent, Settings\n\nThese mappings control native menus. In games, inputs pass directly to the web player; use its controller mapping screen. Connect USB or Bluetooth controllers through Android settings.", 15, MUTED));
+        add(content, text("D-pad / left stick: move focus\n" + (controls.swap ? "B: open · A: back" : "A: open · B: back") + "\nX: search · Y: recent games\nLB / RB: Library, Recent, Co-op, Settings\n\nThese mappings control native menus. In games, inputs pass directly to the web player; use its controller mapping screen. Connect USB or Bluetooth controllers through Android settings.", 15, MUTED));
         add(content, text("Server", 24, INK)); add(content, text(activity.currentServer(), 15, MUTED));
         add(content, button("Full RomM", () -> activity.openWeb("")));
         add(content, text(prefs.getBoolean("rememberLogin", true) ? "Login is remembered on this device." : "Login lasts until the app restarts.", 14, MUTED));
@@ -331,7 +363,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         else if (view != null) view.performClick();
     }
     @Override public void back() { if (screen.equals("login")) activity.confirmExit(); else if (screen.equals("controller")) settings(); else if (!screen.equals("library")) returnLibrary(); else if (!query.isEmpty()) { query = ""; library(); } else activity.confirmExit(); }
-    @Override public void section(int delta) { if (api == null || screen.equals("login")) return; int index = screen.equals("settings") ? 2 : section.equals("Recent") ? 1 : 0; index = (index + delta + 3) % 3; if (index == 2) settings(); else switchSection(index == 0 ? "Library" : "Recent"); }
+    @Override public void section(int delta) { if (api == null || screen.equals("login")) return; int index = (screen.equals("settings") || screen.equals("controller")) ? 3 : screen.equals("coop") ? 2 : section.equals("Recent") ? 1 : 0; index = Math.floorMod(index + delta, 4); if (index == 3) settings(); else if (index == 2) coop(); else switchSection(index == 0 ? "Library" : "Recent"); }
     @Override public void search() { if (!screen.equals("library")) { if (api == null) return; library(); } search.setVisibility(View.VISIBLE); search.requestFocus(); ((InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(search, InputMethodManager.SHOW_IMPLICIT); }
     @Override public void recent() { if (api != null && !screen.equals("login")) switchSection("Recent"); }
     void controllerDialog(AlertDialog dialog) {
@@ -339,10 +371,10 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         // Ignore the release of the A/B press which opened this dialog.
         // Only a press begun inside this window may activate or dismiss it.
         final boolean[] confirmPressed={false}, backPressed={false};
-        dialog.setOnShowListener(d -> { ViewGroup decor=(ViewGroup)dialog.getWindow().getDecorView(); decor.post(() -> ControllerFocus.ensure(decor,decor,dialog.getListView()!=null?dialog.getListView():dialog.getButton(AlertDialog.BUTTON_NEGATIVE))); });
+        dialog.setOnShowListener(d -> { dialog.getWindow().setBackgroundDrawable(appearanceBackground()); ViewGroup decor=(ViewGroup)dialog.getWindow().getDecorView(); decor.post(() -> ControllerFocus.ensure(decor,decor,dialog.getListView()!=null?dialog.getListView():dialog.getButton(AlertDialog.BUTTON_NEGATIVE))); });
         dialog.setOnKeyListener((d,key,event) -> {
             if(key>=KeyEvent.KEYCODE_DPAD_UP && key<=KeyEvent.KEYCODE_DPAD_RIGHT) {
-                if(event.getAction()==KeyEvent.ACTION_DOWN) { ViewGroup decor=(ViewGroup)dialog.getWindow().getDecorView(); ControllerFocus.move(decor,decor,dialog.getListView(),key); }
+                if(event.getAction()==KeyEvent.ACTION_DOWN) { View focus=dialog.getCurrentFocus(); if(focus instanceof SeekBar && (key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT)) { SeekBar value=(SeekBar)focus;value.setProgress(Math.max(0,Math.min(value.getMax(),value.getProgress()+(key==KeyEvent.KEYCODE_DPAD_LEFT?-5:5)))); } else { ViewGroup decor=(ViewGroup)dialog.getWindow().getDecorView(); ControllerFocus.move(decor,decor,dialog.getListView(),key); } }
                 return true;
             }
             if(key==(controls.swap?KeyEvent.KEYCODE_BUTTON_A:KeyEvent.KEYCODE_BUTTON_B)) {
@@ -370,6 +402,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
     void configurationChanged() {
         if (screen.equals("library")) { restoreSelection = grid == null ? 0 : Math.max(0, grid.getFirstVisiblePosition()); library(); }
         else if (screen.equals("settings")) settings();
+        else if (screen.equals("coop")) coop();
         else if (screen.equals("controller")) controllerCheck();
         else if (screen.equals("detail") && selectedGame != null) detail(selectedGame);
     }
