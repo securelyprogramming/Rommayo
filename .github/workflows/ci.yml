@@ -38,7 +38,7 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947
-      - run: ./gradlew assembleDebug lintDebug
+      - run: ./gradlew assembleDebug assembleDebugAndroidTest lintDebug
         working-directory: android
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

@@ -113,6 +113,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
             root.addView(navigation);
         }
         hint = text(controllerHint(), 11, MUTED); hint.setSingleLine(true); hint.setEllipsize(android.text.TextUtils.TruncateAt.END); hint.setPadding(dp(12), dp(4), dp(12), dp(4)); root.addView(hint);
+        root.post(() -> { if (!controllerNames().isEmpty()) ControllerFocus.start(body, screen.equals("library") ? grid : null); });
     }
     private Button navButton(String title, String destination, Runnable action) {
         Button item = button(title, action); item.setContentDescription(destination); item.setTextSize(13); item.setLetterSpacing(.05f);
@@ -183,7 +184,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         LinearLayout filters = new LinearLayout(activity); if (shortScreen()) rowButton(filters, "Search · X", this::search); rowButton(filters, platformName, this::platformPicker); rowButton(filters, "Full RomM", () -> activity.openWeb("")); add(body, filters);
         TextView shelf = text(section.equals("Recent") ? "PICK UP WHERE YOU LEFT OFF" : "ALL GAMES", 13, INK); shelf.setTypeface(null, Typeface.BOLD); shelf.setLetterSpacing(.09f); if (!shortScreen()) body.addView(shelf);
         status = text("Loading your library…", 12, MUTED); body.addView(status);
-        grid = new GridView(activity); grid.setNumColumns(GridView.AUTO_FIT); grid.setColumnWidth(dp(compact() ? 118 : 152)); grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH); grid.setHorizontalSpacing(dp(10)); grid.setVerticalSpacing(dp(10)); grid.setPadding(dp(4), dp(4), dp(4), dp(8)); grid.setClipToPadding(false); grid.setDrawSelectorOnTop(true); grid.setSelector(focusBackground()); grid.setCacheColorHint(Color.TRANSPARENT);
+        grid = new GridView(activity); grid.setFocusable(true); grid.setFocusableInTouchMode(true); grid.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS); grid.setNumColumns(GridView.AUTO_FIT); grid.setColumnWidth(dp(compact() ? 118 : 152)); grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH); grid.setHorizontalSpacing(dp(10)); grid.setVerticalSpacing(dp(10)); grid.setPadding(dp(4), dp(4), dp(4), dp(8)); grid.setClipToPadding(false); grid.setDrawSelectorOnTop(true); grid.setSelector(ControllerFocus.selector(ACCENT,dp(3),dp(6))); grid.setCacheColorHint(Color.TRANSPARENT);
         grid.setAdapter(adapter); body.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1));
         grid.setOnItemClickListener((parent, view, position, id) -> { selection = position; detail(games.get(position)); });
         grid.setOnScrollListener(new AbsListView.OnScrollListener() {
@@ -218,7 +219,7 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
                 JSONObject page = new JSONObject(result); JSONArray items = page.getJSONArray("items"); total = page.optInt("total", games.size() + items.length());
                 for (int i = 0; i < items.length(); i++) games.add(items.getJSONObject(i)); offset = games.size(); hasMore = items.length() > 0 && offset < total;
                 adapter.notifyDataSetChanged(); status.setText(total == 0 ? "No games found. Change your search or platform." : total + " games  ·  " + games.size() + " loaded" + (hasMore ? "  ·  scroll for more" : ""));
-                if (reset && grid != null && !(activity.getCurrentFocus() instanceof EditText)) { grid.requestFocus(); grid.setSelection(Math.min(restoreSelection, Math.max(0, games.size() - 1))); restoreSelection = 0; }
+                if (reset && grid != null && !(activity.getCurrentFocus() instanceof EditText)) { ControllerFocus.select(grid, Math.min(restoreSelection, Math.max(0, games.size() - 1)), !controllerNames().isEmpty()); restoreSelection = 0; }
             } catch (Exception issue) { status.setText("This RomM version returned an unsupported response. Open Full RomM."); hasMore = false; }
         });
     }
@@ -323,9 +324,9 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
         if (screen.equals("controller") && event.isFromSource(InputDevice.SOURCE_JOYSTICK)) { diagnostic.setText(String.format(java.util.Locale.ROOT, "Left stick  X %.2f  Y %.2f\nD-pad  X %.0f  Y %.0f", event.getAxisValue(MotionEvent.AXIS_X), event.getAxisValue(MotionEvent.AXIS_Y), event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y))); return true; }
         return controls.motion(event);
     }
-    @Override public void direction(int key) { root.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, key)); root.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, key)); }
+    @Override public void direction(int key) { ControllerFocus.move(root, body, screen.equals("library") ? grid : null, key); }
     @Override public void confirm() {
-        View view = activity.getCurrentFocus();
+        View view = ControllerFocus.ensure(root, body, screen.equals("library") ? grid : null);
         if (view instanceof GridView) { int position = grid.getSelectedItemPosition(); if (position >= 0 && position < games.size()) { selection = position; detail(games.get(position)); } }
         else if (view != null) view.performClick();
     }
@@ -334,10 +335,32 @@ final class NativeLibrary implements ControllerNavigation.Target, InputManager.I
     @Override public void search() { if (!screen.equals("library")) { if (api == null) return; library(); } search.setVisibility(View.VISIBLE); search.requestFocus(); ((InputMethodManager) activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(search, InputMethodManager.SHOW_IMPLICIT); }
     @Override public void recent() { if (api != null && !screen.equals("login")) switchSection("Recent"); }
     void controllerDialog(AlertDialog dialog) {
-        dialog.setOnKeyListener((d, key, event) -> {
-            if (key == (controls.swap ? KeyEvent.KEYCODE_BUTTON_A : KeyEvent.KEYCODE_BUTTON_B)) { if (event.getAction() == KeyEvent.ACTION_UP) dialog.dismiss(); return true; }
-            if (key == (controls.swap ? KeyEvent.KEYCODE_BUTTON_B : KeyEvent.KEYCODE_BUTTON_A)) {
-                View focus = dialog.getCurrentFocus(); if (event.getAction() == KeyEvent.ACTION_UP && focus != null) { if (focus instanceof ListView) { ListView list = (ListView) focus; int position = list.getSelectedItemPosition(); if (position >= 0) list.performItemClick(list.getSelectedView(), position, list.getItemIdAtPosition(position)); } else focus.performClick(); } return true;
+        controls.stop();
+        // Ignore the release of the A/B press which opened this dialog.
+        // Only a press begun inside this window may activate or dismiss it.
+        final boolean[] confirmPressed={false}, backPressed={false};
+        dialog.setOnShowListener(d -> { ViewGroup decor=(ViewGroup)dialog.getWindow().getDecorView(); decor.post(() -> ControllerFocus.ensure(decor,decor,dialog.getListView()!=null?dialog.getListView():dialog.getButton(AlertDialog.BUTTON_NEGATIVE))); });
+        dialog.setOnKeyListener((d,key,event) -> {
+            if(key>=KeyEvent.KEYCODE_DPAD_UP && key<=KeyEvent.KEYCODE_DPAD_RIGHT) {
+                if(event.getAction()==KeyEvent.ACTION_DOWN) { ViewGroup decor=(ViewGroup)dialog.getWindow().getDecorView(); ControllerFocus.move(decor,decor,dialog.getListView(),key); }
+                return true;
+            }
+            if(key==(controls.swap?KeyEvent.KEYCODE_BUTTON_A:KeyEvent.KEYCODE_BUTTON_B)) {
+                if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0) backPressed[0]=true;
+                else if(event.getAction()==KeyEvent.ACTION_UP) { boolean dismiss=backPressed[0]&&!event.isCanceled();backPressed[0]=false;if(dismiss)dialog.dismiss(); }
+                return true;
+            }
+            if(key==(controls.swap?KeyEvent.KEYCODE_BUTTON_B:KeyEvent.KEYCODE_BUTTON_A)) {
+                if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0) confirmPressed[0]=true;
+                else if(event.getAction()==KeyEvent.ACTION_UP) {
+                    boolean activate=confirmPressed[0]&&!event.isCanceled();confirmPressed[0]=false;
+                    View focus=dialog.getCurrentFocus();
+                    if(activate&&focus!=null) {
+                        if(focus instanceof ListView) { ListView list=(ListView)focus;int selected=list.getSelectedItemPosition();if(selected>=0)list.performItemClick(list.getSelectedView(),selected,list.getItemIdAtPosition(selected)); }
+                        else focus.performClick();
+                    }
+                }
+                return true;
             }
             return false;
         });

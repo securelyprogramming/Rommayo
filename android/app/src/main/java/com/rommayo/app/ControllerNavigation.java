@@ -12,15 +12,31 @@ final class ControllerNavigation {
     private final Target target;
     boolean swap, sticks = true;
     float deadZone = .30f;
-    private int held;
+    private int held, keyed, axisDirection;
+    private final boolean[] keys = new boolean[4];
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable repeat = new Runnable() {
-        @Override public void run() { if (held != 0) { target.direction(held); handler.postDelayed(this, 130); } }
+        @Override public void run() { if (held != 0) { target.direction(held); if (held != 0) handler.postDelayed(this, 130); } }
     };
-    void stop() { held = 0; handler.removeCallbacks(repeat); }
+    void stop() { held = keyed = axisDirection = 0; java.util.Arrays.fill(keys, false); handler.removeCallbacks(repeat); }
+    private void updateDirection() {
+        int direction = keyed != 0 ? keyed : axisDirection;
+        if (held == direction) return;
+        handler.removeCallbacks(repeat); held = direction;
+        if (held != 0) { target.direction(held); if (held != 0) handler.postDelayed(repeat, 350); }
+    }
     ControllerNavigation(Target target) { this.target = target; }
     boolean key(KeyEvent event) {
         int key = event.getKeyCode();
+        if (key >= KeyEvent.KEYCODE_DPAD_UP && key <= KeyEvent.KEYCODE_DPAD_RIGHT) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) { keys[key - KeyEvent.KEYCODE_DPAD_UP] = true; keyed = key; }
+            else if (event.getAction() == KeyEvent.ACTION_UP) {
+                keys[key - KeyEvent.KEYCODE_DPAD_UP] = false; keyed = 0;
+                for (int i = 0; i < keys.length; i++) if (keys[i]) { keyed = KeyEvent.KEYCODE_DPAD_UP + i; break; }
+            }
+            updateDirection(); return true;
+        }
+        if (key == KeyEvent.KEYCODE_DPAD_CENTER) { if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) target.confirm(); return true; }
         boolean mapped = key == KeyEvent.KEYCODE_BUTTON_A || key == KeyEvent.KEYCODE_BUTTON_B || key == KeyEvent.KEYCODE_BUTTON_X || key == KeyEvent.KEYCODE_BUTTON_Y || key == KeyEvent.KEYCODE_BUTTON_L1 || key == KeyEvent.KEYCODE_BUTTON_R1;
         if (!mapped) return false;
         if (event.getAction() != KeyEvent.ACTION_DOWN || event.getRepeatCount() != 0) return true;
@@ -40,8 +56,7 @@ final class ControllerNavigation {
         }
         int direction = 0;
         if (Math.max(Math.abs(x), Math.abs(y)) >= deadZone) direction = Math.abs(x) > Math.abs(y) ? (x > 0 ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT) : (y > 0 ? KeyEvent.KEYCODE_DPAD_DOWN : KeyEvent.KEYCODE_DPAD_UP);
-        if (direction == 0) { stop(); return true; }
-        if (held != direction) { stop(); held = direction; target.direction(direction); handler.postDelayed(repeat, 350); }
+        axisDirection = direction; updateDirection();
         return true;
     }
     private float centered(MotionEvent event, int axis) {
