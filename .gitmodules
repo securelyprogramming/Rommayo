@@ -1,0 +1,3 @@
+[submodule "modules/boogie-woogie"]
+	path = modules/boogie-woogie
+	url = https://github.com/securelyprogramming/boogie-woogie.git
