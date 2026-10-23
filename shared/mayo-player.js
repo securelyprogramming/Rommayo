@@ -17,7 +17,7 @@
     .mayo-player-shell > .ejs_virtualGamepad_open { opacity:0.8 !important; }
     .mayo-player-shell.ejs_big_screen > .ejs_menu_bar { opacity:1 !important;visibility:visible !important;pointer-events:auto !important;transform:translateY(0) !important;overflow-x:auto;max-width:100%; }
     .mayo-touch-hidden > .ejs_virtualGamepad_parent { display:none !important; }
-    .mayo-touch-toggle { position:absolute;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:20;min-height:44px;min-width:44px;padding:8px 12px;border:1px solid ${accent};border-radius:7px;background:${background};color:#ecf8f0;font:600 13px system-ui,sans-serif;cursor:pointer;touch-action:manipulation; }
+    .mayo-touch-toggle { position:absolute;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:20;width:auto;max-width:calc(100% - 16px);min-height:44px;min-width:44px;padding:8px 12px;border:1px solid ${accent};border-radius:7px;background:${background};color:#ecf8f0;font:600 13px system-ui,sans-serif;cursor:pointer;touch-action:manipulation; }
     .mayo-touch-toggle:focus-visible { outline:3px solid ${accent};outline-offset:2px; }
   `;
   (document.head || document.documentElement).appendChild(style);
