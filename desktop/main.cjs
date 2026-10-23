@@ -133,13 +133,16 @@ async function connect(command) {
     }
     closeRemote(); server = address;
     remote = new WebContentsView({ webPreferences: {
-      session: ses, nodeIntegration: false, contextIsolation: true, sandbox: true,
+      preload: path.join(__dirname, 'player-preload.cjs'), session: ses, nodeIntegration: false, contextIsolation: true, sandbox: true,
       webSecurity: true, allowRunningInsecureContent: false, autoplayPolicy: 'user-gesture-required'
     } });
     const view = remote;
     const skin = (command.steamTheme !== false ? fs.readFileSync(path.join(__dirname, '..', 'shared', 'rommayo-theme.css'), 'utf8') : '') + (deck ? fs.readFileSync(path.join(__dirname, '..', 'shared', 'deck-player.css'),'utf8') : '');
     view.webContents.on('did-finish-load', () => {
-      if (skin && sameOrigin(view.webContents.getURL(), address)) view.webContents.insertCSS(skin).catch(() => {});
+      if (sameOrigin(view.webContents.getURL(), address)) {
+        if (skin) view.webContents.insertCSS(skin).catch(() => {});
+        view.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, '..', 'shared', 'mayo-player.js'), 'utf8')).catch(() => {});
+      }
     });
     view.allowedOrigins = new Set([new URL(address).origin]);
     window.contentView.addChildView(view); layout();
@@ -159,7 +162,7 @@ async function connect(command) {
     });
     view.webContents.on('page-title-updated', (event, title) => { event.preventDefault(); window.setTitle(`${title || 'RomM'} · Rommayo`); });
     view.webContents.on('will-prevent-unload', (event) => {
-      if (quitting) { event.preventDefault(); return; }
+      if (quitting || view.playerExited) { event.preventDefault(); return; }
       const choice = dialog.showMessageBoxSync(window, {
         type: 'question', title: 'Leave this RomM page?',
         message: 'Your game or unsaved changes may still be running.',
@@ -251,6 +254,13 @@ app.whenReady().then(async () => {
   } catch { servers = []; temporaryServers = []; lastSession = null; }
   for (const address of temporaryServers) { await clearAuthentication(address); if (lastSession?.server === address) lastSession = null; servers = servers.filter(value => value !== address); }
   temporaryServers = []; save();
+  ipcMain.on('rommayo:player-exit', (event) => {
+    const view = remote;
+    if (!view || event.sender !== view.webContents || event.senderFrame !== view.webContents.mainFrame || !sameOrigin(event.senderFrame.url, server) || view.playerExited) return;
+    // Upstream already confirmed Exit. Keep this session and return to its library.
+    view.playerExited = true;
+    view.webContents.loadURL(server).catch(() => sendState('Could not return to your library. Use Home to retry.')).finally(() => { view.playerExited = false; });
+  });
   ipcMain.handle('rommayo:command', command);
   function createWindow() {
     window = new BrowserWindow({ width: 1200, height: 920, minWidth: 360, minHeight: 500, backgroundColor: '#101413', title: 'Rommayo', icon: path.join(__dirname, '..', 'assets', 'icon.png'),
